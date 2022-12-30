@@ -2,6 +2,7 @@ package botsaver
 
 import (
 	"math/rand"
+	"strings"
 	"time"
 
 	"chalhub/internal/modutil"
@@ -12,67 +13,94 @@ type Point struct {
 	x, y int
 }
 
-func GetGridSize() int {
+type grid struct {
+	size   int
+	Matrix [][]rune
+}
+
+var Grid = &grid{}
+
+func (g *grid) String() string {
+	rows := make([]string, len(g.Matrix))
+
+	for x := range g.Matrix {
+		rows[x] = string(g.Matrix[x])
+	}
+
+	return strings.Join(rows, "\n")
+}
+
+func (g *grid) GetGridSize() int {
 	for {
-		gridSize, err := util.ReadInteger("Enter an odd number between 3 and 99: ")
+		var err error
+		g.size, err = util.ReadInteger("Enter an odd number between 3 and 99: ")
 
 		if err != nil {
 			modutil.PrintAdvice("an integer was expected")
 			continue
 		}
 
-		if gridSize < 3 || gridSize > 99 {
-			modutil.PrintAdvice("an integer between 3 and 99 is needed; given: %d", gridSize)
+		if g.size < 3 || g.size > 99 {
+			modutil.PrintAdvice("an integer between 3 and 99 is needed; given: %d", g.size)
 			continue
 		}
 
-		if gridSize%2 == 0 {
-			modutil.PrintAdvice("an odd integer is needed; given: %d (even)", gridSize)
+		if g.size%2 == 0 {
+			modutil.PrintAdvice("an odd integer is needed; given: %d (even)", g.size)
 			continue
 		}
 
-		return gridSize
+		return g.size
 	}
 }
 
-func GenerateGrid(size int) [][]string {
-	middleValue := getMiddleValue(size)
-	middlePoint, princessPoint := Point{middleValue, middleValue}, getPrincessPoint(size)
+func (g *grid) GenerateGrid() bool {
+	if g.size == 0 {
+		return false
+	}
 
-	result := make([][]string, size)
+	middleValue := g.getMiddleValue()
+	middlePoint, princessPoint := Point{middleValue, middleValue}, g.getPrincessPoint()
 
-	for x := range result {
-		result[x] = make([]string, size)
+	g.Matrix = make([][]rune, g.size)
 
-		for y := range result[x] {
+	for x := range g.Matrix {
+		g.Matrix[x] = make([]rune, g.size)
+
+		for y := range g.Matrix[x] {
 			switch {
 			case x == princessPoint.x && y == princessPoint.y:
-				result[x][y] = "p"
+				g.Matrix[x][y] = 'p'
 
 			case x == middlePoint.x && y == middlePoint.y:
-				result[x][y] = "m"
+				g.Matrix[x][y] = 'm'
 
 			default:
-				result[x][y] = "-"
+				g.Matrix[x][y] = '-'
 			}
 		}
 	}
 
-	return result
+	return true
 }
 
-func getMiddleValue(size int) int {
-	return size / 2
+func (g *grid) Clear() {
+	g.size = 0
+	g.Matrix = nil
 }
 
-func getPrincessPoint(size int) (result Point) {
-	middleValue := getMiddleValue(size)
+func (g *grid) getMiddleValue() int {
+	return g.size / 2
+}
+
+func (g *grid) getPrincessPoint() (result Point) {
+	middleValue := g.getMiddleValue()
 	rand.Seed(time.Now().UnixNano())
 
 	for {
 		result = Point{
-			rand.Intn(size),
-			rand.Intn(size),
+			rand.Intn(g.size),
+			rand.Intn(g.size),
 		}
 
 		if result.x != middleValue || result.y != middleValue {
