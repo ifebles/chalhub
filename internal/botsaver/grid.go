@@ -9,22 +9,28 @@ import (
 	"chalhub/pkg/util"
 )
 
+const (
+	middleChar   = 'm'
+	princessChar = 'p'
+	blankSpace   = '-'
+)
+
 type Point struct {
 	x, y int
 }
 
 type grid struct {
 	size   int
-	Matrix [][]rune
+	matrix [][]rune
 }
 
 var Grid = &grid{}
 
 func (g *grid) String() string {
-	rows := make([]string, len(g.Matrix))
+	rows := make([]string, len(g.matrix))
 
-	for x := range g.Matrix {
-		rows[x] = string(g.Matrix[x])
+	for x := range g.matrix {
+		rows[x] = string(g.matrix[x])
 	}
 
 	return strings.Join(rows, "\n")
@@ -62,21 +68,21 @@ func (g *grid) GenerateGrid() bool {
 	middleValue := g.getMiddleValue()
 	middlePoint, princessPoint := Point{middleValue, middleValue}, g.getPrincessPoint()
 
-	g.Matrix = make([][]rune, g.size)
+	g.matrix = make([][]rune, g.size)
 
-	for x := range g.Matrix {
-		g.Matrix[x] = make([]rune, g.size)
+	for x := range g.matrix {
+		g.matrix[x] = make([]rune, g.size)
 
-		for y := range g.Matrix[x] {
+		for y := range g.matrix[x] {
 			switch {
 			case x == princessPoint.x && y == princessPoint.y:
-				g.Matrix[x][y] = 'p'
+				g.matrix[x][y] = princessChar
 
 			case x == middlePoint.x && y == middlePoint.y:
-				g.Matrix[x][y] = 'm'
+				g.matrix[x][y] = middleChar
 
 			default:
-				g.Matrix[x][y] = '-'
+				g.matrix[x][y] = blankSpace
 			}
 		}
 	}
@@ -86,7 +92,7 @@ func (g *grid) GenerateGrid() bool {
 
 func (g *grid) Clear() {
 	g.size = 0
-	g.Matrix = nil
+	g.matrix = nil
 }
 
 func (g *grid) getMiddleValue() int {

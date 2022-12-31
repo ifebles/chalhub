@@ -11,21 +11,31 @@ import (
 )
 
 func main() {
-	defer botsaver.Grid.Clear()
 	fmt.Print("** Welcome to the \"Save the Princess\" solver **\n\n")
+
+	defer botsaver.Grid.Clear()
+	defer botsaver.Bot.Clear()
 
 	gridSize := botsaver.Grid.GetGridSize()
 
-	modutil.PrintSystem("Generating %dx%d grid...", gridSize, gridSize)
+	modutil.PrintSystem("generating %dx%d grid...", gridSize, gridSize)
 	ok := botsaver.Grid.GenerateGrid()
 
 	if ok {
-		modutil.PrintSystem("Done\n")
+		modutil.PrintSystem("done\n")
 	} else {
-		panic("Unable to generate grid")
+		panic("unable to generate grid")
 	}
 
 	util.PauseExecution()
 
-	fmt.Println(botsaver.Grid)
+	fmt.Printf("\n%v\n\n", botsaver.Grid)
+
+	modutil.PrintSystem("calculating best route for the bot (m)...")
+
+	botsaver.Bot.Feed(fmt.Sprint(botsaver.Grid))
+	botsaver.Bot.DisplayPathToPrincess(func() {
+		modutil.PrintSystem("done\n")
+		util.PauseExecution()
+	})
 }
