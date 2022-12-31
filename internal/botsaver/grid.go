@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"chalhub/internal/modutil"
-	"chalhub/pkg/util"
+	"github.com/ifebles/chalhub/internal/modutil"
+	"github.com/ifebles/chalhub/pkg/util"
 )
 
 const (

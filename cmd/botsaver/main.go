@@ -5,9 +5,9 @@ package main
 import (
 	"fmt"
 
-	"chalhub/internal/botsaver"
-	"chalhub/internal/modutil"
-	"chalhub/pkg/util"
+	"github.com/ifebles/chalhub/internal/botsaver"
+	"github.com/ifebles/chalhub/internal/modutil"
+	"github.com/ifebles/chalhub/pkg/util"
 )
 
 func main() {
