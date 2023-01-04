@@ -16,7 +16,11 @@ func main() {
 	defer botsaver.Grid.Clear()
 	defer botsaver.Bot.Clear()
 
-	gridSize := botsaver.Grid.GetGridSize()
+	gridSize := botsaver.Grid.GetGridSize(10)
+
+	if gridSize == -1 {
+		panic("unable to get a valid input")
+	}
 
 	modutil.PrintSystem("generating %dx%d grid...", gridSize, gridSize)
 	ok := botsaver.Grid.GenerateGrid()

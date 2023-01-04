@@ -36,8 +36,12 @@ func (g *grid) String() string {
 	return strings.Join(rows, "\n")
 }
 
-func (g *grid) GetGridSize() int {
-	for {
+func (g *grid) GetGridSize(attemptLimit int) int {
+	if attemptLimit <= 0 {
+		panic("invalid limit given")
+	}
+
+	for x := 0; x < attemptLimit; x++ {
 		var err error
 		g.size, err = util.ReadInteger("Enter an odd number between 3 and 99: ")
 
@@ -58,6 +62,8 @@ func (g *grid) GetGridSize() int {
 
 		return g.size
 	}
+
+	return -1
 }
 
 func (g *grid) GenerateGrid() bool {
