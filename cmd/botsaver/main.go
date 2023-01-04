@@ -1,6 +1,6 @@
 // Challenge inspiration from: https://www.hackerrank.com/challenges/saveprincess
 
-package main
+package botsaver
 
 import (
 	"fmt"
@@ -10,8 +10,12 @@ import (
 	"github.com/ifebles/chalhub/pkg/util"
 )
 
-func main() {
-	fmt.Print("** Welcome to the \"Save the Princess\" solver **\n\n")
+func GetName() string {
+	return "Save the Princess"
+}
+
+func Run() {
+	fmt.Printf("** Welcome to the \"%s\" solver **\n\n", GetName())
 
 	defer botsaver.Grid.Clear()
 	defer botsaver.Bot.Clear()
