@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/ifebles/chalhub/cmd/botsaver"
+	"github.com/ifebles/chalhub/cmd/checkerbot"
 	"github.com/ifebles/chalhub/internal/modutil"
 	"github.com/ifebles/chalhub/pkg/util"
 )
@@ -16,6 +17,7 @@ type challenge struct {
 
 var challenges = []challenge{
 	{botsaver.GetName(), botsaver.Run},
+	{checkerbot.GetName(), checkerbot.Run},
 }
 
 func main() {
@@ -24,11 +26,15 @@ func main() {
 
 	for {
 		fmt.Print("Select an option:\n\n")
-		options := getOptions()
 
+		challengeNames := util.MapCollection(challenges, func(item challenge) string {
+			return item.name
+		})
+
+		options := modutil.GetFormattedOptions(challengeNames)
 		fmt.Printf("%s\n\n", strings.Join(options, "\n"))
 
-		selectedOption := getOptionFromUser(10)
+		selectedOption := modutil.GetIntOptionFromUser(10, len(challenges))
 
 		if selectedOption == 0 {
 			fmt.Print("\nGoodbye!\n")
@@ -48,40 +54,4 @@ func main() {
 		modutil.PrintSystem("closing challenge \"%s\"...", challenges[selectedOption-1].name)
 		modutil.PrintSystem("returning to main HUB...\n")
 	}
-}
-
-func getOptions() []string {
-	result := make([]string, 0, len(challenges)+1)
-
-	for x := range challenges {
-		result = append(result, fmt.Sprintf("\t%d) %s", x+1, challenges[x].name))
-	}
-
-	result = append(result, "\t0) Exit")
-
-	return result
-}
-
-func getOptionFromUser(attemptLimit int) int {
-	if attemptLimit <= 0 {
-		panic("invalid limit given")
-	}
-
-	for x := 0; x < attemptLimit; x++ {
-		result, err := util.ReadInteger(">> ")
-
-		if err != nil {
-			modutil.PrintAdvice("an integer was expected")
-			continue
-		}
-
-		if min, max := 0, len(challenges); result < min || result > max {
-			modutil.PrintAdvice("an integer between %d and %d was expected", min, max)
-			continue
-		}
-
-		return result
-	}
-
-	return 0
 }
