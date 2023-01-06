@@ -15,35 +15,24 @@ const (
 )
 
 type point struct {
-	x, y int
+	X, Y int
 }
 
-type piece struct {
-	point
-	isKing bool
+type Piece struct {
+	Point  point
+	IsKing bool
 }
 
 type board struct {
 	initialized bool
-	white       []piece
-	black       []piece
+	white       []Piece
+	black       []Piece
 }
 
 var Board = &board{}
 
 func (b *board) String() string {
 	return b.Render()
-}
-
-func (b *board) Initialize() {
-	b.initialized = true
-	b.white = make([]piece, initialPieceCount)
-	b.black = make([]piece, initialPieceCount)
-
-	for x := 0; x < initialPieceCount; x++ {
-		b.white[x] = piece{point{x/4 + 5, (x%4)*2 + (x/4)%2}, false}
-		b.black[x] = piece{point{x / 4, (x%4)*2 + (1 - (x/4)%2)}, false}
-	}
 }
 
 func (b *board) Render() string {
@@ -53,17 +42,17 @@ func (b *board) Render() string {
 		boardRender[x] = []rune(strings.Repeat(string(blankSpace), boardSize))
 	}
 
-	populatePieces := func(pieces []piece, pieceChar rune, ch chan bool) {
+	populatePieces := func(pieces []Piece, pieceChar rune, ch chan bool) {
 		for x := range pieces {
 			var char rune
 
-			if pieces[x].isKing {
+			if pieces[x].IsKing {
 				char = unicode.ToUpper(pieceChar)
 			} else {
 				char = pieceChar
 			}
 
-			boardRender[pieces[x].x][pieces[x].y] = char
+			boardRender[pieces[x].Point.X][pieces[x].Point.Y] = char
 		}
 
 		ch <- true
@@ -102,4 +91,15 @@ func (b *board) Clear() {
 	b.initialized = false
 	b.white = nil
 	b.black = nil
+}
+
+func (b *board) initialize() {
+	b.initialized = true
+	b.white = make([]Piece, initialPieceCount)
+	b.black = make([]Piece, initialPieceCount)
+
+	for x := 0; x < initialPieceCount; x++ {
+		b.white[x] = Piece{point{x/4 + 5, (x%4)*2 + (x/4)%2}, false}
+		b.black[x] = Piece{point{x / 4, (x%4)*2 + (1 - (x/4)%2)}, false}
+	}
 }
