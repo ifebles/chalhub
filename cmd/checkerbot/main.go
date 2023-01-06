@@ -21,7 +21,7 @@ func Run() {
 
 	fmt.Print("Select the play mode:\n\n")
 
-	options := modutil.GetFormattedOptions(checkerbot.PlayModes[:])
+	options := modutil.GetFormattedOptions(checkerbot.PlayModes[:], "Exit", 3)
 	fmt.Printf("%s\n\n", strings.Join(options, "\n"))
 
 	selectedOption := modutil.GetIntOptionFromUser(10, len(checkerbot.PlayModes))
@@ -33,7 +33,7 @@ func Run() {
 	fmt.Println()
 	modutil.PrintSystem("generating board...")
 
-	checkerbot.Board.Initialize()
+	// checkerbot.Board.Initialize()
 	modutil.PrintSystem("done")
 
 	fmt.Println()

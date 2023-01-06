@@ -27,11 +27,11 @@ func main() {
 	for {
 		fmt.Print("Select an option:\n\n")
 
-		challengeNames := util.MapCollection(challenges, func(item challenge) string {
+		challengeNames := util.Map(challenges, func(item challenge) string {
 			return item.name
 		})
 
-		options := modutil.GetFormattedOptions(challengeNames)
+		options := modutil.GetFormattedOptions(challengeNames, "Exit", 2)
 		fmt.Printf("%s\n\n", strings.Join(options, "\n"))
 
 		selectedOption := modutil.GetIntOptionFromUser(10, len(challenges))

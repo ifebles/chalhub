@@ -18,6 +18,18 @@ func ReadInteger(prompt string) (int, error) {
 	return number, err
 }
 
+func ReadString(prompt string) (string, error) {
+	var response string
+	stdin := bufio.NewReader(os.Stdin)
+
+	fmt.Print(prompt)
+
+	_, err := fmt.Fscan(stdin, &response)
+	stdin.Discard(stdin.Buffered())
+
+	return response, err
+}
+
 func PauseExecution() {
 	stdin := bufio.NewReader(os.Stdin)
 	pauseMessage := "(Press 'Enter' to continue)"
