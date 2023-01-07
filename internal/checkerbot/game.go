@@ -66,6 +66,7 @@ func (pl player) containsPieceAt(p point) (bool, error) {
 type movement struct {
 	from, to point
 	slay     *point
+	isKing   bool
 }
 
 type moveParams struct {
@@ -156,7 +157,7 @@ func CoordToPoint(c string) point {
 	return point{boardSize - numeral, int(literal - 'A')}
 }
 
-func identifyMoves(pl player, po, st point, dir vdirection) []movement {
+func identifyMoves(pl player, po point, chkoverlap func(point) bool, dir vdirection) []movement {
 	checkMv := func(xcond, ycond bool, xdir, ydir int) (movement, bool) {
 		var mt movement
 
@@ -168,16 +169,35 @@ func identifyMoves(pl player, po, st point, dir vdirection) []movement {
 				return mt, false
 			}
 
-			if t, _ := pl.containsPieceAt(p); (!isEnemy && !t) || st == p {
-				return movement{po, p, nil}, true
+			if t, _ := pl.containsPieceAt(p); !isEnemy && !t {
+				king := dir == vboth
+
+				if !king {
+					// Set king status for the movement
+					king = (dir == up && p.X == 0) || (dir == down && p.X == boardSize-1)
+				}
+
+				return movement{po, p, nil, king}, true
 			}
 
 			if isEnemy {
-				s := &p
+				s := &point{p.X, p.Y}
 				p = point{p.X + xdir, p.Y + ydir}
+				king := dir == vboth
 
-				if _, ok, err := Board.GetPieceAt(p); !ok && err != nil {
-					return movement{po, p, s}, true
+				if !king {
+					// Set king status for the movement
+					king = (dir == up && p.X == 0) || (dir == down && p.X == boardSize-1)
+				}
+
+				overlap := false
+
+				if chkoverlap != nil {
+					overlap = chkoverlap(p)
+				}
+
+				if _, ok, err := Board.GetPieceAt(p); err == nil && (overlap || !ok) {
+					return movement{po, p, s, king}, true
 				}
 			}
 		}
@@ -246,7 +266,7 @@ func FilterSlayingOptions(pl player) []Piece {
 			d = vboth
 		}
 
-		mvs := identifyMoves(pl, i.Point, i.Point, d)
+		mvs := identifyMoves(pl, i.Point, nil, d)
 		_, ok := util.Find(mvs, func(it movement) bool { return it.slay != nil })
 
 		return ok
@@ -271,7 +291,7 @@ func FilterSimpleOptions(pl player) []Piece {
 			d = vboth
 		}
 
-		if mvs := identifyMoves(pl, i.Point, i.Point, d); len(mvs) > 0 {
+		if mvs := identifyMoves(pl, i.Point, nil, d); len(mvs) > 0 {
 			return true
 		}
 
@@ -279,4 +299,85 @@ func FilterSimpleOptions(pl player) []Piece {
 	})
 
 	return result
+}
+
+func CreateTreeMaps(pl player, pi *Piece) []tree[movement] {
+	result := []tree[movement]{}
+	var dir vdirection
+
+	if pi.IsKing {
+		dir = vboth
+	} else if pl.Char == whiteChar {
+		dir = up
+	} else {
+		dir = down
+	}
+
+	mvs := identifyMoves(pl, pi.Point, nil, dir)
+
+	if len(mvs) == 0 {
+		panic("the piece has no valid move")
+	}
+
+	_, onlySlay := util.Find(mvs, func(i movement) bool { return i.slay != nil })
+
+	for _, a := range mvs {
+		if !onlySlay || (onlySlay && a.slay != nil) {
+			t := tree[movement]{dir, &xtreeNode[movement]{value: a}}
+			populateTree(pl, t.start, a.from, dir, onlySlay)
+
+			result = append(result, t)
+		}
+	}
+
+	return result
+}
+
+func populateTree(pl player, nd *xtreeNode[movement], st point, dir vdirection, slay bool) {
+	var mvs []movement
+	overlapchk := func(p point) bool {
+		return p == st && p != nd.value.from
+	}
+
+	if m := identifyMoves(pl, nd.value.to, overlapchk, dir); slay {
+		mvs = util.Filter(m, func(i movement) bool { return i.slay != nil })
+	} else {
+		mvs = m
+	}
+
+	if len(mvs) == 0 {
+		return
+	}
+
+	for _, a := range mvs {
+		n := &xtreeNode[movement]{value: a}
+		var err error
+
+		if a.to.X < a.from.X {
+			// Top-left
+			if a.to.Y < a.from.Y {
+				err = nd.add(n, up, left)
+			} else { // Top-right
+				err = nd.add(n, up, right)
+			}
+		} else {
+			// Bottom-left
+			if a.to.Y < a.from.Y {
+				err = nd.add(n, down, left)
+			} else { // Bottom-right
+				err = nd.add(n, down, right)
+			}
+		}
+
+		if err == nil {
+			nudir := dir
+
+			if nudir != vboth && a.isKing {
+				// In case the move caused crowning:
+				nudir = vboth
+			}
+
+			populateTree(pl, n, st, nudir, slay)
+		}
+	}
 }

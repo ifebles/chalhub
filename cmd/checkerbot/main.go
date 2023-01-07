@@ -88,7 +88,9 @@ func Run() {
 				continue
 			}
 
-			fmt.Printf("Selected piece: %v\n", selectedPiece)
+			trees := checkerbot.CreateTreeMaps(currentPlayer, selectedPiece)
+
+			fmt.Println(trees)
 		}
 
 		util.PauseExecution()
