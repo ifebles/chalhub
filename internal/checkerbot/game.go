@@ -156,7 +156,7 @@ func CoordToPoint(c string) point {
 	return point{boardSize - numeral, int(literal - 'A')}
 }
 
-func identifyMoves(pl player, po point, dir vdirection) []movement {
+func identifyMoves(pl player, po, st point, dir vdirection) []movement {
 	checkMv := func(xcond, ycond bool, xdir, ydir int) (movement, bool) {
 		var mt movement
 
@@ -168,13 +168,13 @@ func identifyMoves(pl player, po point, dir vdirection) []movement {
 				return mt, false
 			}
 
-			if t, _ := pl.containsPieceAt(p); !isEnemy && !t {
+			if t, _ := pl.containsPieceAt(p); (!isEnemy && !t) || st == p {
 				return movement{po, p, nil}, true
 			}
 
 			if isEnemy {
 				s := &p
-				p = point{p.X - 1, p.Y - 1}
+				p = point{p.X + xdir, p.Y + ydir}
 
 				if _, ok, err := Board.GetPieceAt(p); !ok && err != nil {
 					return movement{po, p, s}, true
@@ -246,7 +246,7 @@ func FilterSlayingOptions(pl player) []Piece {
 			d = vboth
 		}
 
-		mvs := identifyMoves(pl, i.Point, d)
+		mvs := identifyMoves(pl, i.Point, i.Point, d)
 		_, ok := util.Find(mvs, func(it movement) bool { return it.slay != nil })
 
 		return ok
@@ -271,7 +271,7 @@ func FilterSimpleOptions(pl player) []Piece {
 			d = vboth
 		}
 
-		if mvs := identifyMoves(pl, i.Point, d); len(mvs) > 0 {
+		if mvs := identifyMoves(pl, i.Point, i.Point, d); len(mvs) > 0 {
 			return true
 		}
 
