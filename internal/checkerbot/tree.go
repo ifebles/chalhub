@@ -34,6 +34,72 @@ type xtreeNode[T comparable] struct {
 	value T
 }
 
+type pathMarker[T comparable] struct {
+	id   int
+	path []int
+	val  T
+}
+
+func (t tree[T]) getPathCollection(stp func(T) bool) []pathMarker[T] {
+	result := []pathMarker[T]{}
+
+	if t.start == nil {
+		return result
+	}
+
+	result = getPaths(t.start, new(int), []int{}, stp, []*xtreeNode[T]{})
+
+	return result
+}
+
+func getPaths[T comparable](
+	nd *xtreeNode[T], cnt *int, histids []int, stp func(T) bool, cache []*xtreeNode[T],
+) []pathMarker[T] {
+	result := []pathMarker[T]{}
+
+	if nd == nil {
+		return result
+	}
+
+	if _, ok := util.Find(cache, func(i *xtreeNode[T]) bool { return i == nd }); ok {
+		return result
+	} else {
+		cache = append(cache, nd)
+	}
+
+	////
+
+	*cnt++
+	id := *cnt
+	upthist := append(histids, id)
+	result = append(result, pathMarker[T]{id, upthist, nd.value})
+
+	if stp(nd.value) {
+		return result
+	}
+
+	nodes := []*xtreeNode[T]{
+		nd.topleft, nd.topright,
+		nd.bottomleft, nd.bottomright,
+	}
+
+	////
+
+	for _, a := range nodes {
+		if a == nil {
+			continue
+		}
+
+		nucache := make([]*xtreeNode[T], len(cache))
+		copy(nucache, cache)
+
+		resp := getPaths(a, cnt, upthist, stp, nucache)
+		result = append(result, resp...)
+	}
+
+	return result
+}
+
 func (t *tree[T]) hasNodeWith(n T) bool {
 	checked := make([]*xtreeNode[T], 0)
 
