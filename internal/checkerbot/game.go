@@ -322,11 +322,13 @@ func CreateTreeMaps(pl player, pi *Piece) []tree[movement] {
 	_, onlySlay := util.Find(mvs, func(i movement) bool { return i.slay != nil })
 
 	for _, a := range mvs {
-		if !onlySlay || (onlySlay && a.slay != nil) {
+		if onlySlay && a.slay != nil {
 			t := tree[movement]{dir, &xtreeNode[movement]{value: a}}
 			populateTree(pl, t.start, a.from, dir, onlySlay)
 
 			result = append(result, t)
+		} else if !onlySlay {
+			result = append(result, tree[movement]{dir, &xtreeNode[movement]{value: a}})
 		}
 	}
 
