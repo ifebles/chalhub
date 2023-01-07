@@ -65,9 +65,20 @@ func Run() {
 		fmt.Println(checkerbot.Board)
 
 		if !isAi {
-			playerPieces := checkerbot.GetPieces(currentPlayer)
-			playerPieceOption := getPlayerPieceOption(playerPieces)
-			selectedPiece, sgn := processSelectedPlayerPiece(playerPieceOption, playerPieces)
+			var optPieces []checkerbot.Piece
+
+			if slayers := checkerbot.FilterSlayingOptions(currentPlayer); len(slayers) > 0 {
+				optPieces = slayers
+			} else {
+				optPieces = checkerbot.FilterSimpleOptions(currentPlayer)
+			}
+
+			if len(optPieces) == 0 {
+				// TODO: check if the game is stuck
+			}
+
+			playerPieceOption := getPlayerPieceOption(optPieces, currentPlayer.Char)
+			selectedPiece, sgn := processSelectedPlayerPiece(playerPieceOption, optPieces)
 
 			switch sgn {
 			case quit:
@@ -87,7 +98,7 @@ func Run() {
 
 }
 
-func readPlayerInput(attemptLimit, valueLimit int) any {
+func readPlayerInput(attemptLimit int, pieces []checkerbot.Piece) any {
 	if attemptLimit <= 0 {
 		panic("invalid limit given")
 	}
@@ -103,7 +114,7 @@ func readPlayerInput(attemptLimit, valueLimit int) any {
 		num, err := strconv.Atoi(result)
 
 		if err == nil {
-			if min, max := 0, valueLimit; num < min || num > max {
+			if min, max := 0, len(pieces); num < min || num > max {
 				modutil.PrintAdvice("if an integer is provided, must be between %d and %d", min, max)
 				continue
 			}
@@ -120,25 +131,26 @@ func readPlayerInput(attemptLimit, valueLimit int) any {
 		ok := false
 
 		func() {
-			defer func() {
-				if err := recover(); err == nil {
-					ok = true
-				}
-			}()
+			defer func() { recover() }()
+			p := checkerbot.CoordToPoint(result)
 
-			checkerbot.CoordToPoint(result)
+			_, ok = util.Find(pieces, func(i checkerbot.Piece) bool {
+				return i.Point.X == p.X && i.Point.Y == p.Y
+			})
 		}()
 
 		if ok {
 			return result
 		}
+		// else
+		modutil.PrintAdvice("input a valid coordinate/command")
 	}
 
 	return "P"
 }
 
-func getPlayerPieceOption(pieces []checkerbot.Piece) any {
-	fmt.Print("\nSelect a piece:\n")
+func getPlayerPieceOption(pieces []checkerbot.Piece, plchr rune) any {
+	fmt.Printf("\nSelect a piece: (player: %s)\n", string(plchr))
 	fmt.Print("(P - print the board and options)\n\n")
 
 	playerOptions := util.Map(pieces, func(i checkerbot.Piece) string {
@@ -152,10 +164,8 @@ func getPlayerPieceOption(pieces []checkerbot.Piece) any {
 	})
 
 	options := modutil.GetFormattedOptions(playerOptions, "Exit", 4)
-
 	fmt.Printf("%s\n\n", strings.Join(options, "\n"))
-
-	option := readPlayerInput(10, len(pieces))
+	option := readPlayerInput(10, pieces)
 
 	return option
 }
@@ -176,7 +186,7 @@ func processSelectedPlayerPiece(opt any, pieces []checkerbot.Piece) (*checkerbot
 			return nil, print
 		}
 
-		piece, _ = util.Find(pieces, func(i checkerbot.Piece) bool {
+		piece, _ = util.FindPtr(pieces, func(i checkerbot.Piece) bool {
 			p := checkerbot.CoordToPoint(o)
 			return i.Point.X == p.X && i.Point.Y == p.Y
 		})

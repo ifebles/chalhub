@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+
+	"github.com/ifebles/chalhub/pkg/util"
 )
 
 const (
@@ -37,12 +39,13 @@ func (b *board) String() string {
 
 func (b *board) Render() string {
 	boardRender := make([][]rune, boardSize)
+	ch := make(chan bool, 2)
 
 	for x := range boardRender {
 		boardRender[x] = []rune(strings.Repeat(string(blankSpace), boardSize))
 	}
 
-	populatePieces := func(pieces []Piece, pieceChar rune, ch chan bool) {
+	populatePieces := func(pieces []Piece, pieceChar rune) {
 		for x := range pieces {
 			var char rune
 
@@ -58,10 +61,8 @@ func (b *board) Render() string {
 		ch <- true
 	}
 
-	ch := make(chan bool, 2)
-
-	go populatePieces(b.white, whiteChar, ch)
-	go populatePieces(b.black, blackChar, ch)
+	go populatePieces(b.white, whiteChar)
+	go populatePieces(b.black, blackChar)
 
 	////
 
@@ -85,6 +86,35 @@ func (b *board) Render() string {
 	////
 
 	return strings.Join(rows, "\n")
+}
+
+func (b *board) GetPieceAt(p point) (*Piece, bool, error) {
+	if p.X < 0 || p.Y < 0 || p.X >= boardSize || p.Y >= boardSize {
+		return nil, false, fmt.Errorf("out of bounds")
+	}
+
+	ch := make(chan *Piece, 2)
+
+	search := func(col []Piece) {
+		found, _ := util.FindPtr(col, func(i Piece) bool {
+			return i.Point.X == p.X && i.Point.Y == p.Y
+		})
+
+		ch <- found
+	}
+
+	go search(b.white)
+	go search(b.black)
+
+	result := <-ch
+
+	if result != nil {
+		return result, true, nil
+	}
+
+	result = <-ch
+
+	return result, result != nil, nil
 }
 
 func (b *board) Clear() {
