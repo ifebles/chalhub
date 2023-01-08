@@ -354,24 +354,49 @@ func populateTree(pl player, nd *xtreeNode[movement], st point, dir vdirection, 
 	for _, a := range mvs {
 		n := &xtreeNode[movement]{value: a}
 		var err error
+		dirpair := struct {
+			h hdirection
+			v vdirection
+		}{}
 
 		if a.to.X < a.from.X {
 			// Top-left
 			if a.to.Y < a.from.Y {
-				err = nd.add(n, up, left)
+				dirpair.v, dirpair.h = up, left
+				err = nd.add(n, dirpair.v, dirpair.h)
 			} else { // Top-right
-				err = nd.add(n, up, right)
+				dirpair.v, dirpair.h = up, right
+				err = nd.add(n, dirpair.v, dirpair.h)
 			}
 		} else {
 			// Bottom-left
 			if a.to.Y < a.from.Y {
-				err = nd.add(n, down, left)
+				dirpair.v, dirpair.h = down, left
+				err = nd.add(n, dirpair.v, dirpair.h)
 			} else { // Bottom-right
-				err = nd.add(n, down, right)
+				dirpair.v, dirpair.h = down, right
+				err = nd.add(n, dirpair.v, dirpair.h)
 			}
 		}
 
 		if err == nil {
+			fnd := nd.findNode(func(v movement) bool { return a.to == v.from })
+
+			if fnd != nil {
+				var nuv vdirection
+
+				if dirpair.v == up {
+					nuv = down
+				} else {
+					nuv = up
+				}
+
+				// Connect both ends:
+				n.set(fnd, nuv, dirpair.h)
+			}
+
+			////
+
 			nudir := dir
 
 			if nudir != vboth && a.isKing {

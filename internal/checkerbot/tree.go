@@ -40,20 +40,20 @@ type pathMarker[T comparable] struct {
 	val  T
 }
 
-func (t tree[T]) getPathCollection(stp func(T) bool) []pathMarker[T] {
+func (t tree[T]) getPathCollection(stpif func(T) bool, ignif func(T, T) bool) []pathMarker[T] {
 	result := []pathMarker[T]{}
 
 	if t.start == nil {
 		return result
 	}
 
-	result = getPaths(t.start, new(int), []int{}, stp, []*xtreeNode[T]{})
+	result = getPaths(t.start, new(int), []int{}, stpif, ignif, []*xtreeNode[T]{})
 
 	return result
 }
 
 func getPaths[T comparable](
-	nd *xtreeNode[T], cnt *int, histids []int, stp func(T) bool, cache []*xtreeNode[T],
+	nd *xtreeNode[T], cnt *int, histids []int, stp func(T) bool, ign func(T, T) bool, cache []*xtreeNode[T],
 ) []pathMarker[T] {
 	result := []pathMarker[T]{}
 
@@ -71,7 +71,10 @@ func getPaths[T comparable](
 
 	*cnt++
 	id := *cnt
-	upthist := append(histids, id)
+	upthist := make([]int, len(histids)+1)
+	copy(upthist, histids)
+	upthist[len(upthist)-1] = id
+
 	result = append(result, pathMarker[T]{id, upthist, nd.value})
 
 	if stp(nd.value) {
@@ -86,25 +89,65 @@ func getPaths[T comparable](
 	////
 
 	for _, a := range nodes {
-		if a == nil {
+		if a == nil || ign(nd.value, a.value) {
 			continue
 		}
 
 		nucache := make([]*xtreeNode[T], len(cache))
 		copy(nucache, cache)
 
-		resp := getPaths(a, cnt, upthist, stp, nucache)
+		resp := getPaths(a, cnt, upthist, stp, ign, nucache)
 		result = append(result, resp...)
 	}
 
 	return result
 }
 
-func (t *tree[T]) hasNodeWith(n T) bool {
-	checked := make([]*xtreeNode[T], 0)
+func (t *tree[T]) hasNodeWith(v T) bool {
+	fn := func(vl T) bool { return vl == v }
+	_, ok := search(t.start, fn, t.dir, -1, []*xtreeNode[T]{})
 
-	_, ok := search(t.start, n, t.dir, -1, checked)
 	return ok
+}
+
+func (xn *xtreeNode[T]) getNodeWith(v T, dir vdirection, ign ...*xtreeNode[T]) *xtreeNode[T] {
+	fn := func(vl T) bool { return vl == v }
+	ignore := make([]*xtreeNode[T], len(ign))
+	copy(ignore, ign)
+
+	nd, _ := search(xn, fn, dir, -1, ignore)
+
+	return nd
+}
+
+func (xn *xtreeNode[T]) findNode(fn func(T) bool) *xtreeNode[T] {
+	nd, _ := search(xn, fn, vboth, -1, []*xtreeNode[T]{})
+
+	return nd
+}
+
+func (xn *xtreeNode[T]) set(n *xtreeNode[T], vdir vdirection, hdir hdirection) {
+	if hdir == hboth || vdir == vboth {
+		panic("cannot set in both directions")
+	}
+
+	if vdir == up {
+		if hdir == left {
+			xn.topleft = n
+			n.bottomright = xn
+		} else {
+			xn.topright = n
+			n.bottomleft = xn
+		}
+	} else {
+		if hdir == left {
+			xn.bottomleft = n
+			n.topright = xn
+		} else {
+			xn.bottomright = n
+			n.topleft = xn
+		}
+	}
 }
 
 func (xn *xtreeNode[T]) add(n *xtreeNode[T], vdir vdirection, hdir hdirection) error {
@@ -140,7 +183,6 @@ func (xn *xtreeNode[T]) add(n *xtreeNode[T], vdir vdirection, hdir hdirection) e
 
 			return nil
 		}
-
 	} else {
 		if hdir == left {
 			if xn.bottomleft != nil {
@@ -172,7 +214,7 @@ func (xn *xtreeNode[T]) add(n *xtreeNode[T], vdir vdirection, hdir hdirection) e
 	}
 }
 
-func search[T comparable](nd *xtreeNode[T], val T, dir vdirection, depth int, cache []*xtreeNode[T]) (*xtreeNode[T], bool) {
+func search[T comparable](nd *xtreeNode[T], fn func(T) bool, dir vdirection, depth int, cache []*xtreeNode[T]) (*xtreeNode[T], bool) {
 	if depth < -1 {
 		panic(fmt.Sprintf("invalid depth: %d", depth))
 	}
@@ -195,7 +237,7 @@ func search[T comparable](nd *xtreeNode[T], val T, dir vdirection, depth int, ca
 
 	////
 
-	if nd.value == val {
+	if fn(nd.value) {
 		return nd, true
 	}
 
@@ -203,13 +245,13 @@ func search[T comparable](nd *xtreeNode[T], val T, dir vdirection, depth int, ca
 
 	searchTop := func() (*xtreeNode[T], bool) {
 		if nd.topleft != nil {
-			if node, ok := search(nd.topleft, val, dir, nxtlim, cache); ok {
+			if node, ok := search(nd.topleft, fn, dir, nxtlim, cache); ok {
 				return node, ok
 			}
 		}
 
 		if nd.topright != nil {
-			if node, ok := search(nd.topright, val, dir, nxtlim, cache); ok {
+			if node, ok := search(nd.topright, fn, dir, nxtlim, cache); ok {
 				return node, ok
 			}
 		}
@@ -219,13 +261,13 @@ func search[T comparable](nd *xtreeNode[T], val T, dir vdirection, depth int, ca
 
 	searchBottom := func() (*xtreeNode[T], bool) {
 		if nd.bottomleft != nil {
-			if node, ok := search(nd.bottomleft, val, dir, nxtlim, cache); ok {
+			if node, ok := search(nd.bottomleft, fn, dir, nxtlim, cache); ok {
 				return node, ok
 			}
 		}
 
 		if nd.bottomright != nil {
-			if node, ok := search(nd.bottomright, val, dir, nxtlim, cache); ok {
+			if node, ok := search(nd.bottomright, fn, dir, nxtlim, cache); ok {
 				return node, ok
 			}
 		}
