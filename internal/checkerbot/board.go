@@ -3,6 +3,7 @@ package checkerbot
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/ifebles/chalhub/pkg/util"
@@ -39,7 +40,6 @@ func (b *board) String() string {
 
 func (b *board) Render() string {
 	boardRender := make([][]rune, boardSize)
-	ch := make(chan bool, 2)
 
 	for x := range boardRender {
 		boardRender[x] = []rune(strings.Repeat(string(blankSpace), boardSize))
@@ -58,11 +58,20 @@ func (b *board) Render() string {
 			boardRender[pieces[x].Point.X][pieces[x].Point.Y] = char
 		}
 
-		ch <- true
 	}
 
-	go populatePieces(b.white, whiteChar)
-	go populatePieces(b.black, blackChar)
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		populatePieces(b.white, whiteChar)
+	}()
+
+	go func() {
+		defer wg.Done()
+		populatePieces(b.black, blackChar)
+	}()
 
 	////
 
@@ -74,8 +83,7 @@ func (b *board) Render() string {
 		letters += string(x)
 	}
 
-	<-ch
-	<-ch
+	wg.Wait()
 
 	for x := range boardRender {
 		rows[x] = fmt.Sprintf("%d | %s", boardSize-x, strings.Join(strings.Split(string(boardRender[x]), ""), " "))
@@ -103,14 +111,28 @@ func (b *board) GetPieceAt(p Point) (*Piece, bool, error) {
 		ch <- found
 	}
 
-	go search(b.white)
-	go search(b.black)
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		search(b.white)
+	}()
+
+	go func() {
+		defer wg.Done()
+		search(b.black)
+	}()
+
+	////
 
 	result := <-ch
 
 	if result != nil {
 		return result, true, nil
 	}
+
+	wg.Wait()
 
 	result = <-ch
 

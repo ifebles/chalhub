@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ifebles/chalhub/pkg/util"
@@ -110,8 +111,15 @@ var currentTurn = 1
 var players = [2]*player{}
 
 func StartGame(mode PlayMode) *player {
+	wg := sync.WaitGroup{}
+
 	if !Board.initialized {
-		go Board.initialize()
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+			Board.initialize()
+		}()
 	}
 
 	switch mode {
@@ -141,6 +149,8 @@ func StartGame(mode PlayMode) *player {
 	default:
 		panic("unknown mode")
 	}
+
+	wg.Wait()
 
 	return players[0]
 }
