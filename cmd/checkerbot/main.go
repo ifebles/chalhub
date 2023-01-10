@@ -89,8 +89,14 @@ func Run() {
 			}
 
 			trees := checkerbot.CreateTreeMaps(currentPlayer, selectedPiece)
+			plays := checkerbot.GetPiecePlays(trees)
 
-			fmt.Println(trees)
+			selectedPlay := handlePiecePlays(plays, checkerbot.PointToCoord(selectedPiece.Point), 10)
+
+			// Move back:
+			if selectedPlay == 0 {
+				continue
+			}
 		}
 
 		util.PauseExecution()
@@ -198,4 +204,42 @@ func processSelectedPlayerPiece(opt any, pieces []checkerbot.Piece) (*checkerbot
 	}
 
 	return piece, cont
+}
+
+func handlePiecePlays(plays []checkerbot.Play, pi string, attemptLimit int) int {
+	fmt.Printf("\nSelect a play: (piece: %s)\n\n", pi)
+
+	playerOptions := util.Map(plays, func(i checkerbot.Play) string {
+		result := strings.Join(i.Breadcrumbs, ", ")
+		slaycoords := util.Map(i.Slays, func(it *checkerbot.Point) string {
+			return checkerbot.PointToCoord(*it)
+		})
+
+		if len(slaycoords) > 0 {
+			result += fmt.Sprintf(" (Slays: %s)", strings.Join(slaycoords, ", "))
+		}
+
+		return result
+	})
+
+	options := modutil.GetFormattedOptions(playerOptions, "Back", 1)
+	fmt.Printf("%s\n\n", strings.Join(options, "\n"))
+
+	for x := 0; x < attemptLimit; x++ {
+		resp, err := util.ReadInteger(">> ")
+
+		if err != nil {
+			modutil.PrintAdvice("an integer was expected")
+			continue
+		}
+
+		if min, max := 0, len(plays); resp < min || resp > max {
+			modutil.PrintAdvice("the number must be between %d and %d", min, max)
+			continue
+		}
+
+		return resp
+	}
+
+	return 0
 }

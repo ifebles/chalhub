@@ -51,7 +51,7 @@ type player struct {
 	Pieces []Piece
 }
 
-func (pl player) containsPieceAt(p point) (bool, error) {
+func (pl player) containsPieceAt(p Point) (bool, error) {
 	if p.X < 0 || p.Y < 0 || p.X >= boardSize || p.Y >= boardSize {
 		return false, fmt.Errorf("point out of bounds")
 	}
@@ -64,14 +64,21 @@ func (pl player) containsPieceAt(p point) (bool, error) {
 }
 
 type movement struct {
-	from, to point
-	slay     *point
+	from, to Point
+	slay     *Point
 	isKing   bool
 }
 
 type moveParams struct {
 	cond1, cond2 bool
 	dir1, dir2   int
+}
+
+type Play struct {
+	Breadcrumbs []string
+	Dest        Point
+	Slays       []*Point
+	IsKing      bool
 }
 
 var currentTurn = 1
@@ -123,7 +130,7 @@ func EndTurn() player {
 	return GetCurrentPlayer()
 }
 
-func PointToCoord(p point) string {
+func PointToCoord(p Point) string {
 	if p.X < 0 || p.X >= boardSize || p.Y < 0 || p.Y >= boardSize {
 		panic(fmt.Sprintf("invalid point: %v", p))
 	}
@@ -133,7 +140,7 @@ func PointToCoord(p point) string {
 	return fmt.Sprintf("%s%d", string(literal), numeral)
 }
 
-func CoordToPoint(c string) point {
+func CoordToPoint(c string) Point {
 	if len(c) != 2 {
 		panic(fmt.Sprintf("invalid coordinate: %q", c))
 	}
@@ -154,15 +161,15 @@ func CoordToPoint(c string) point {
 		panic(fmt.Sprintf("invalid numeral: %d", numeral))
 	}
 
-	return point{boardSize - numeral, int(literal - 'A')}
+	return Point{boardSize - numeral, int(literal - 'A')}
 }
 
-func identifyMoves(pl player, po point, chkoverlap func(point) bool, dir vdirection) []movement {
+func identifyMoves(pl player, po Point, chkoverlap func(Point) bool, dir vdirection) []movement {
 	checkMv := func(xcond, ycond bool, xdir, ydir int) (movement, bool) {
 		var mt movement
 
 		if xcond && ycond {
-			p := point{po.X + xdir, po.Y + ydir}
+			p := Point{po.X + xdir, po.Y + ydir}
 			isEnemy, err := pl.Enemy.containsPieceAt(p)
 
 			if err != nil {
@@ -181,8 +188,8 @@ func identifyMoves(pl player, po point, chkoverlap func(point) bool, dir vdirect
 			}
 
 			if isEnemy {
-				s := &point{p.X, p.Y}
-				p = point{p.X + xdir, p.Y + ydir}
+				s := &Point{p.X, p.Y}
+				p = Point{p.X + xdir, p.Y + ydir}
 				king := dir == vboth
 
 				if !king {
@@ -335,9 +342,64 @@ func CreateTreeMaps(pl player, pi *Piece) []tree[movement] {
 	return result
 }
 
-func populateTree(pl player, nd *xtreeNode[movement], st point, dir vdirection, slay bool) {
+func GetPiecePlays(t []tree[movement]) []Play {
+	stopif := func(m movement) bool { return m.slay == nil }
+	ignoreif := func(n1, n2 movement) bool { return n1.to != n2.from }
+	result := []Play{}
+
+	for _, a := range t {
+		paths := a.getPathCollection(stopif, ignoreif)
+		plays := getPlays(paths)
+
+		result = append(result, plays...)
+	}
+
+	return result
+}
+
+func getPlays(pm []pathMarker[movement]) []Play {
+	result := []Play{}
+
+	finalPaths := util.Filter(pm, func(i pathMarker[movement]) bool {
+		c := util.Filter(pm, func(it pathMarker[movement]) bool {
+			_, ok := util.Find(it.path, func(id int) bool { return id == i.id })
+			return ok
+		})
+
+		return len(c) == 1
+	})
+
+	////
+
+	for _, a := range finalPaths {
+		parts := util.Filter(pm, func(i pathMarker[movement]) bool {
+			_, ok := util.Find(a.path, func(it int) bool { return it == i.id })
+			return ok
+		})
+
+		p := Play{Slays: []*Point{}}
+
+		p.Breadcrumbs = util.Map(parts, func(i pathMarker[movement]) string {
+			if i.val.slay != nil {
+				p.Slays = append(p.Slays, i.val.slay)
+			}
+
+			return PointToCoord(i.val.to)
+		})
+
+		inx := len(parts) - 1
+		p.Dest = parts[inx].val.to
+		p.IsKing = parts[inx].val.isKing
+
+		result = append(result, p)
+	}
+
+	return result
+}
+
+func populateTree(pl player, nd *xtreeNode[movement], st Point, dir vdirection, slay bool) {
 	var mvs []movement
-	overlapchk := func(p point) bool {
+	overlapchk := func(p Point) bool {
 		return p == st && p != nd.value.from
 	}
 

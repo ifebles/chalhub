@@ -16,12 +16,12 @@ const (
 	initialPieceCount = 12
 )
 
-type point struct {
+type Point struct {
 	X, Y int
 }
 
 type Piece struct {
-	Point  point
+	Point  Point
 	IsKing bool
 }
 
@@ -88,7 +88,7 @@ func (b *board) Render() string {
 	return strings.Join(rows, "\n")
 }
 
-func (b *board) GetPieceAt(p point) (*Piece, bool, error) {
+func (b *board) GetPieceAt(p Point) (*Piece, bool, error) {
 	if p.X < 0 || p.Y < 0 || p.X >= boardSize || p.Y >= boardSize {
 		return nil, false, fmt.Errorf("out of bounds")
 	}
@@ -129,7 +129,7 @@ func (b *board) initialize() {
 	b.black = make([]Piece, initialPieceCount)
 
 	for x := 0; x < initialPieceCount; x++ {
-		b.white[x] = Piece{point{x/4 + 5, (x%4)*2 + (x/4)%2}, false}
-		b.black[x] = Piece{point{x / 4, (x%4)*2 + (1 - (x/4)%2)}, false}
+		b.white[x] = Piece{Point{x/4 + 5, (x%4)*2 + (x/4)%2}, false}
+		b.black[x] = Piece{Point{x / 4, (x%4)*2 + (1 - (x/4)%2)}, false}
 	}
 }
