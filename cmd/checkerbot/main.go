@@ -74,7 +74,26 @@ func Run() {
 			}
 
 			if len(optPieces) == 0 {
-				// TODO: check if the game is stuck
+				canEnemyPlay := false
+
+				if enemyMoves := checkerbot.FilterSlayingOptions(*currentPlayer.Enemy); len(enemyMoves) > 0 {
+					canEnemyPlay = true
+				} else if enemyMoves := checkerbot.FilterSimpleOptions(*currentPlayer.Enemy); len(enemyMoves) > 0 {
+					canEnemyPlay = true
+				}
+
+				fmt.Println()
+				modutil.PrintSystem("no moves can be made\n")
+
+				if canEnemyPlay {
+					util.PauseExecution()
+					currentPlayer = checkerbot.EndTurn()
+
+					continue
+				} else {
+					fmt.Print(" * Game ended in a truce *\n\n")
+					return
+				}
 			}
 
 			playerPieceOption := getPlayerPieceOption(optPieces, currentPlayer.Char)
@@ -103,6 +122,13 @@ func Run() {
 			modutil.PrintSystem("executing play...")
 			checkerbot.ExecutePlay(currentPlayer, selectedPiece, selectedPlay)
 			modutil.PrintSystem("done\n")
+		}
+
+		if len(*currentPlayer.Enemy.Pieces) == 0 {
+			fmt.Print("\n ** The game has ended! **\n\n")
+			fmt.Printf(" * Winner: %s *\n\n", playerFlag)
+
+			return
 		}
 
 		util.PauseExecution()
