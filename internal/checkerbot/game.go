@@ -48,19 +48,44 @@ type player struct {
 	Char   rune
 	Enemy  *player
 	Type   playerType
-	Pieces []Piece
+	Pieces *[]*Piece
 }
 
-func (pl player) containsPieceAt(p Point) (bool, error) {
+func (pl *player) getPieceWith(p Point) (*Piece, error) {
 	if p.X < 0 || p.Y < 0 || p.X >= boardSize || p.Y >= boardSize {
-		return false, fmt.Errorf("point out of bounds")
+		return nil, fmt.Errorf("point out of bounds")
 	}
 
-	_, ok := util.Find(pl.Pieces, func(i Piece) bool {
+	f, _ := util.Find(*pl.Pieces, func(i *Piece) bool {
 		return i.Point.X == p.X && i.Point.Y == p.Y
 	})
 
-	return ok, nil
+	return f, nil
+}
+
+func (pl *player) containsPieceWith(p Point) (bool, error) {
+	resp, err := pl.getPieceWith(p)
+
+	return resp != nil, err
+}
+
+func (pl *player) removePiece(p Point) bool {
+	inx := -1
+
+	for x := range *pl.Pieces {
+		if (*pl.Pieces)[x].Point == p {
+			inx = x
+			break
+		}
+	}
+
+	if inx == -1 {
+		return false
+	}
+
+	*pl.Pieces = append((*pl.Pieces)[:inx], (*pl.Pieces)[inx+1:]...)
+
+	return true
 }
 
 type movement struct {
@@ -82,9 +107,9 @@ type Play struct {
 }
 
 var currentTurn = 1
-var players = [2]player{}
+var players = [2]*player{}
 
-func StartGame(mode PlayMode) player {
+func StartGame(mode PlayMode) *player {
 	if !Board.initialized {
 		go Board.initialize()
 	}
@@ -94,20 +119,24 @@ func StartGame(mode PlayMode) player {
 		rand.Seed(time.Now().UnixNano())
 
 		if rand.Intn(2) == 1 {
-			players[0] = player{blackChar, &players[1], Human, Board.black}
-			players[1] = player{whiteChar, &players[0], Ai, Board.white}
+			players[0] = &player{blackChar, players[1], Human, &Board.black}
+			players[1] = &player{whiteChar, players[0], Ai, &Board.white}
+			players[0].Enemy = players[1]
 		} else {
-			players[0] = player{blackChar, &players[1], Ai, Board.black}
-			players[1] = player{whiteChar, &players[0], Human, Board.white}
+			players[0] = &player{blackChar, players[1], Ai, &Board.black}
+			players[1] = &player{whiteChar, players[0], Human, &Board.white}
+			players[0].Enemy = players[1]
 		}
 
 	case PlayerVsPlayer:
-		players[0] = player{blackChar, &players[1], Human, Board.black}
-		players[1] = player{whiteChar, &players[0], Human, Board.white}
+		players[0] = &player{blackChar, nil, Human, &Board.black}
+		players[1] = &player{whiteChar, players[0], Human, &Board.white}
+		players[0].Enemy = players[1]
 
 	case AIvsAI:
-		players[0] = player{blackChar, &players[1], Ai, Board.black}
-		players[1] = player{whiteChar, &players[0], Ai, Board.white}
+		players[0] = &player{blackChar, players[1], Ai, &Board.black}
+		players[1] = &player{whiteChar, players[0], Ai, &Board.white}
+		players[0].Enemy = players[1]
 
 	default:
 		panic("unknown mode")
@@ -120,11 +149,11 @@ func GetTurnNumber() int {
 	return currentTurn
 }
 
-func GetCurrentPlayer() player {
+func GetCurrentPlayer() *player {
 	return players[(currentTurn-1)%len(players)]
 }
 
-func EndTurn() player {
+func EndTurn() *player {
 	currentTurn++
 
 	return GetCurrentPlayer()
@@ -170,13 +199,13 @@ func identifyMoves(pl player, po Point, chkoverlap func(Point) bool, dir vdirect
 
 		if xcond && ycond {
 			p := Point{po.X + xdir, po.Y + ydir}
-			isEnemy, err := pl.Enemy.containsPieceAt(p)
+			isEnemy, err := pl.Enemy.containsPieceWith(p)
 
 			if err != nil {
 				return mt, false
 			}
 
-			if t, _ := pl.containsPieceAt(p); !isEnemy && !t {
+			if t, _ := pl.containsPieceWith(p); !isEnemy && !t {
 				king := dir == vboth
 
 				if !king {
@@ -257,7 +286,7 @@ func identifyMoves(pl player, po Point, chkoverlap func(Point) bool, dir vdirect
 	return mvs
 }
 
-func FilterSlayingOptions(pl player) []Piece {
+func FilterSlayingOptions(pl player) []*Piece {
 	var dir vdirection
 
 	if pl.Char == whiteChar {
@@ -266,7 +295,7 @@ func FilterSlayingOptions(pl player) []Piece {
 		dir = down
 	}
 
-	result := util.Filter(pl.Pieces, func(i Piece) bool {
+	result := util.Filter(*pl.Pieces, func(i *Piece) bool {
 		d := dir
 
 		if i.IsKing {
@@ -282,7 +311,7 @@ func FilterSlayingOptions(pl player) []Piece {
 	return result
 }
 
-func FilterSimpleOptions(pl player) []Piece {
+func FilterSimpleOptions(pl player) []*Piece {
 	var dir vdirection
 
 	if pl.Char == whiteChar {
@@ -291,7 +320,7 @@ func FilterSimpleOptions(pl player) []Piece {
 		dir = down
 	}
 
-	result := util.Filter(pl.Pieces, func(i Piece) bool {
+	result := util.Filter(*pl.Pieces, func(i *Piece) bool {
 		d := dir
 
 		if i.IsKing {
@@ -355,6 +384,15 @@ func GetPiecePlays(t []tree[movement]) []Play {
 	}
 
 	return result
+}
+
+func ExecutePlay(p *player, pi *Piece, pl Play) {
+	pi.Point = pl.Dest
+	pi.IsKing = pl.IsKing
+
+	for _, a := range pl.Slays {
+		p.Enemy.removePiece(*a)
+	}
 }
 
 func getPlays(pm []pathMarker[movement]) []Play {

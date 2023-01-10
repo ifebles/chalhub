@@ -27,8 +27,8 @@ type Piece struct {
 
 type board struct {
 	initialized bool
-	white       []Piece
-	black       []Piece
+	white       []*Piece
+	black       []*Piece
 }
 
 var Board = &board{}
@@ -45,7 +45,7 @@ func (b *board) Render() string {
 		boardRender[x] = []rune(strings.Repeat(string(blankSpace), boardSize))
 	}
 
-	populatePieces := func(pieces []Piece, pieceChar rune) {
+	populatePieces := func(pieces []*Piece, pieceChar rune) {
 		for x := range pieces {
 			var char rune
 
@@ -95,8 +95,8 @@ func (b *board) GetPieceAt(p Point) (*Piece, bool, error) {
 
 	ch := make(chan *Piece, 2)
 
-	search := func(col []Piece) {
-		found, _ := util.FindPtr(col, func(i Piece) bool {
+	search := func(col []*Piece) {
+		found, _ := util.Find(col, func(i *Piece) bool {
 			return i.Point.X == p.X && i.Point.Y == p.Y
 		})
 
@@ -125,11 +125,11 @@ func (b *board) Clear() {
 
 func (b *board) initialize() {
 	b.initialized = true
-	b.white = make([]Piece, initialPieceCount)
-	b.black = make([]Piece, initialPieceCount)
+	b.white = make([]*Piece, initialPieceCount)
+	b.black = make([]*Piece, initialPieceCount)
 
 	for x := 0; x < initialPieceCount; x++ {
-		b.white[x] = Piece{Point{x/4 + 5, (x%4)*2 + (x/4)%2}, false}
-		b.black[x] = Piece{Point{x / 4, (x%4)*2 + (1 - (x/4)%2)}, false}
+		b.white[x] = &Piece{Point{x/4 + 5, (x%4)*2 + (x/4)%2}, false}
+		b.black[x] = &Piece{Point{x / 4, (x%4)*2 + (1 - (x/4)%2)}, false}
 	}
 }
