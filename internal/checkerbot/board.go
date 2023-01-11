@@ -32,7 +32,9 @@ type board struct {
 	black       []*Piece
 }
 
-var Board = &board{}
+func GetNewBoard() *board {
+	return &board{}
+}
 
 func (b *board) String() string {
 	return b.Render()

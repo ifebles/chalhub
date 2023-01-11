@@ -49,6 +49,7 @@ type player struct {
 	Char   rune
 	Enemy  *player
 	Type   playerType
+	board  *board
 	Pieces *[]*Piece
 }
 
@@ -110,15 +111,15 @@ type Play struct {
 var currentTurn = 1
 var players = [2]*player{}
 
-func StartGame(mode PlayMode) *player {
+func StartGame(board *board, mode PlayMode) *player {
 	wg := sync.WaitGroup{}
 
-	if !Board.initialized {
+	if !board.initialized {
 		wg.Add(1)
 
 		go func() {
 			defer wg.Done()
-			Board.initialize()
+			board.initialize()
 		}()
 	}
 
@@ -127,23 +128,23 @@ func StartGame(mode PlayMode) *player {
 		rand.Seed(time.Now().UnixNano())
 
 		if rand.Intn(2) == 1 {
-			players[0] = &player{blackChar, players[1], Human, &Board.black}
-			players[1] = &player{whiteChar, players[0], Ai, &Board.white}
+			players[0] = &player{blackChar, players[1], Human, board, &board.black}
+			players[1] = &player{whiteChar, players[0], Ai, board, &board.white}
 			players[0].Enemy = players[1]
 		} else {
-			players[0] = &player{blackChar, players[1], Ai, &Board.black}
-			players[1] = &player{whiteChar, players[0], Human, &Board.white}
+			players[0] = &player{blackChar, players[1], Ai, board, &board.black}
+			players[1] = &player{whiteChar, players[0], Human, board, &board.white}
 			players[0].Enemy = players[1]
 		}
 
 	case PlayerVsPlayer:
-		players[0] = &player{blackChar, nil, Human, &Board.black}
-		players[1] = &player{whiteChar, players[0], Human, &Board.white}
+		players[0] = &player{blackChar, nil, Human, board, &board.black}
+		players[1] = &player{whiteChar, players[0], Human, board, &board.white}
 		players[0].Enemy = players[1]
 
 	case AIvsAI:
-		players[0] = &player{blackChar, players[1], Ai, &Board.black}
-		players[1] = &player{whiteChar, players[0], Ai, &Board.white}
+		players[0] = &player{blackChar, players[1], Ai, board, &board.black}
+		players[1] = &player{whiteChar, players[0], Ai, board, &board.white}
 		players[0].Enemy = players[1]
 
 	default:
@@ -242,7 +243,7 @@ func identifyMoves(pl player, po Point, chkoverlap func(Point) bool, dir vdirect
 					overlap = chkoverlap(p)
 				}
 
-				if _, ok, err := Board.GetPieceAt(p); err == nil && (overlap || !ok) {
+				if _, ok, err := pl.board.GetPieceAt(p); err == nil && (overlap || !ok) {
 					return movement{po, p, s, king}, true
 				}
 			}

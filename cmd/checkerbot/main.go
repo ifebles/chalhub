@@ -12,14 +12,6 @@ import (
 	"github.com/ifebles/chalhub/pkg/util"
 )
 
-type signal int
-
-const (
-	cont signal = iota
-	print
-	quit
-)
-
 func GetName() string {
 	return "Beat the checker-bot"
 }
@@ -27,7 +19,8 @@ func GetName() string {
 func Run() {
 	fmt.Printf("** Welcome to the \"%s\" challenge **\n\n", GetName())
 
-	defer checkerbot.Board.Clear()
+	board := checkerbot.GetNewBoard()
+	defer board.Clear()
 
 	fmt.Print("Select the play mode:\n\n")
 
@@ -47,10 +40,11 @@ func Run() {
 	fmt.Println()
 	modutil.PrintSystem("starting game...")
 
-	currentPlayer := checkerbot.StartGame(checkerbot.PlayMode(selectedOption - 1))
+	currentPlayer := checkerbot.StartGame(board, checkerbot.PlayMode(selectedOption-1))
 
 	for {
-		fmt.Printf("\nTurn #%d\n", checkerbot.GetTurnNumber())
+		turn := checkerbot.GetTurnNumber()
+		fmt.Printf("\nTurn #%d\n", turn)
 		playerFlag, isAi := "", currentPlayer.Type == checkerbot.Ai
 
 		if isAi {
@@ -62,9 +56,25 @@ func Run() {
 		fmt.Printf("Current player: %s\n\n", playerFlag)
 
 		fmt.Println()
-		fmt.Println(checkerbot.Board)
+		fmt.Println(board)
 
-		if !isAi {
+		if isAi {
+			if turn == 1 {
+				fmt.Println()
+				util.PauseExecution()
+			}
+
+			sgn := checkerbot.AI.DecidePlay(currentPlayer)
+
+			switch sgn {
+			case checkerbot.Next:
+				currentPlayer = checkerbot.EndTurn()
+				continue
+
+			case checkerbot.Quit:
+				return
+			}
+		} else {
 			var optPieces []*checkerbot.Piece
 
 			if slayers := checkerbot.FilterSlayingOptions(*currentPlayer); len(slayers) > 0 {
@@ -100,10 +110,10 @@ func Run() {
 			selectedPiece, sgn := processSelectedPlayerPiece(playerPieceOption, optPieces)
 
 			switch sgn {
-			case quit:
+			case checkerbot.Quit:
 				return // TODO: confirm quit
 
-			case print:
+			case checkerbot.Print:
 				continue
 			}
 
@@ -210,20 +220,20 @@ func getPlayerPieceOption(pieces []*checkerbot.Piece, plchr rune) any {
 	return option
 }
 
-func processSelectedPlayerPiece(opt any, pieces []*checkerbot.Piece) (*checkerbot.Piece, signal) {
+func processSelectedPlayerPiece(opt any, pieces []*checkerbot.Piece) (*checkerbot.Piece, checkerbot.Signal) {
 	var piece *checkerbot.Piece
 
 	switch o := any(opt).(type) {
 	case int:
 		if o == 0 {
-			return nil, quit
+			return nil, checkerbot.Quit
 		}
 
 		piece = pieces[o-1]
 
 	case string:
 		if o == "P" {
-			return nil, print
+			return nil, checkerbot.Print
 		}
 
 		piece, _ = util.Find(pieces, func(i *checkerbot.Piece) bool {
@@ -235,7 +245,7 @@ func processSelectedPlayerPiece(opt any, pieces []*checkerbot.Piece) (*checkerbo
 		panic(fmt.Sprintf("unknown value (%T): %v", o, o))
 	}
 
-	return piece, cont
+	return piece, checkerbot.Cont
 }
 
 func handlePiecePlays(plays []checkerbot.Play, pi string, attemptLimit int) int {
