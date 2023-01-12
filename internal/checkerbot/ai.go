@@ -2,6 +2,7 @@ package checkerbot
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"strings"
 	"time"
@@ -10,13 +11,14 @@ import (
 	"github.com/ifebles/chalhub/pkg/util"
 )
 
-type Signal int
+type playScore int
 
 const (
-	Cont Signal = iota
-	Next
-	Print
-	Quit
+	chasingMove playScore = 1 << (iota + 1)
+	simpleSlayMove
+	crowningMove
+	kingSlayMove
+	nullifyingMove
 )
 
 type ai struct{}
@@ -24,6 +26,7 @@ type ai struct{}
 type piecePlay struct {
 	piece *Piece
 	play  Play
+	score float64
 }
 
 var AI = &ai{}
@@ -58,7 +61,6 @@ func (ai *ai) DecidePlay(pl *player) Signal {
 
 		if canEnemyPlay {
 			util.PauseExecution()
-
 			return Next
 		} else {
 			fmt.Print(" * Game ended in a truce *\n\n")
@@ -70,27 +72,33 @@ func (ai *ai) DecidePlay(pl *player) Signal {
 
 	modutil.PrintSystem("selecting best option...")
 
-	piece, play := selectPlay(pl, optPieces, slays)
+	bestPlays := []piecePlay{}
+
+	for _, a := range optPieces {
+		bestPlays = append(bestPlays, simulatePlays(pl, a, 2)...)
+	}
+
+	bestPlay := selectPlay(pl, bestPlays)
 	modutil.PrintSystem("executing play...")
 
-	pieceCoord := PointToCoord(piece.Point)
-	fmt.Printf("\nPlaying piece %s to %s\n\n", pieceCoord, PointToCoord(play.Dest))
+	pieceCoord := PointToCoord(bestPlay.piece.Point)
+	fmt.Printf("\nPlaying piece %s to %s\n\n", pieceCoord, PointToCoord(bestPlay.play.Dest))
 	fmt.Print("Details:\n\n")
 	fmt.Printf("- Piece: %s\n", pieceCoord)
-	fmt.Printf("- Moves: %s\n", strings.Join(play.Breadcrumbs, ", "))
+	fmt.Printf("- Moves: %s\n", strings.Join(bestPlay.play.Breadcrumbs, ", "))
 
 	if slays {
-		coords := util.Map(play.Slays, func(i *Point) string { return PointToCoord(*i) })
+		coords := util.Map(bestPlay.play.Slays, func(i *Point) string { return PointToCoord(*i) })
 		fmt.Printf("- Slays: %s\n", strings.Join(coords, ", "))
 	}
 
-	if play.IsKing && !piece.IsKing {
+	if bestPlay.play.IsKing && !bestPlay.piece.IsKing {
 		fmt.Print("- Status: crowned\n")
 	}
 
 	////
 
-	ExecutePlay(pl, piece, play)
+	ExecutePlay(pl, bestPlay.piece, bestPlay.play)
 
 	fmt.Println()
 	modutil.PrintSystem("done\n")
@@ -98,78 +106,169 @@ func (ai *ai) DecidePlay(pl *player) Signal {
 	return Cont
 }
 
-func selectPlay(pl *player, pieces []*Piece, isSlay bool) (*Piece, Play) {
-	rand.Seed(time.Now().UnixNano())
-
-	// TODO: establish a point system for movements
-	// TODO: if at least one crowned, pursuit enemy pieces avoiding risks
-
-	if !isSlay {
-		// TODO: check first if the next enemy move causes a slay
-		// TODO: check if next move causes crowning
-		selectedPiece := pieces[rand.Intn(len(pieces))]
-		trees := CreateTreeMaps(*pl, selectedPiece)
-		plays := GetPiecePlays(trees)
-
-		return selectedPiece, plays[rand.Intn(len(plays))]
+func selectPlay(pl *player, pp []piecePlay) piecePlay {
+	if len(pp) == 0 {
+		panic("no possible plays found")
 	}
 
-	////
+	rand.Seed(time.Now().UnixNano())
 
-	potentialPlays := make(map[int][]piecePlay)
-	maxSlay := 0
+	var maxScore *float64
+	scoreMap := make(map[float64][]piecePlay)
 
-	for _, a := range pieces {
-		trees := CreateTreeMaps(*pl, a)
-		plays := GetPiecePlays(trees)
+	for _, a := range pp {
+		if maxScore == nil || *maxScore < a.score {
+			maxScore = &a.score
+		}
 
-		slayCounts := util.Map(plays, func(i Play) int { return len(i.Slays) })
-		localMaxSlay := slayCounts[0]
-		slayMap := make(map[int][]int)
+		if _, ok := scoreMap[a.score]; ok {
+			scoreMap[a.score] = append(scoreMap[a.score], a)
+		} else {
+			scoreMap[a.score] = []piecePlay{a}
+		}
+	}
+
+	inx := rand.Intn(len(scoreMap[*maxScore]))
+
+	return scoreMap[*maxScore][inx]
+}
+
+func simulatePlays(p *player, pi *Piece, depth int) []piecePlay {
+	result := []piecePlay{}
+
+	if depth == 0 {
+		return result
+	}
+
+	// TODO: calculate score of leaving the piece without moving
+
+	var maxScore *float64
+
+	trees := CreateTreeMaps(*p, pi)
+	plays := GetPiecePlays(trees)
+
+	for x, a := range plays {
+		score := 0.0
+
+		if len(a.Slays) > 0 {
+			for _, b := range a.Slays {
+				ep, _, _ := p.board.GetPieceAt(*b)
+
+				if ep.IsKing {
+					score += float64(kingSlayMove)
+				} else {
+					score += float64(simpleSlayMove)
+				}
+			}
+		}
 
 		////
 
-		for x, a := range slayCounts {
-			if a > localMaxSlay {
-				localMaxSlay = a
-			}
+		if !pi.IsKing && a.IsKing {
+			score += float64(crowningMove)
+		} else if !pi.IsKing {
+			crownDest := -1
 
-			if _, ok := slayMap[a]; ok {
-				slayMap[a] = append(slayMap[a], x)
+			if p.Char == whiteChar {
+				crownDest = 0
 			} else {
-				slayMap[a] = []int{x}
+				crownDest = boardSize - 1
 			}
+
+			score += float64(crowningMove) - math.Abs(float64(a.Dest.X-crownDest))
+		} else {
+			// TODO: find the closest piece and the best slaying spot
 		}
 
-		if maxSlay < localMaxSlay {
-			maxSlay = localMaxSlay
-		}
+		if depth-1 == 0 {
+			if maxScore == nil || *maxScore < score {
+				maxScore = &score
+			}
 
-		if localMaxSlay < maxSlay {
+			result = append(result, piecePlay{pi, a, score})
 			continue
 		}
 
 		////
 
-		// TODO: check first if the next enemy move causes a slay
-		// TODO: check if next move causes crowning
-		selectedIndex := slayMap[localMaxSlay][rand.Intn(len(slayMap[localMaxSlay]))]
+		player, piece, playsim := getStateCopy(*p, *pi)
+		ExecutePlay(player, piece, playsim[x])
 
-		if _, ok := potentialPlays[localMaxSlay]; ok {
-			potentialPlays[localMaxSlay] = append(potentialPlays[localMaxSlay], piecePlay{a, plays[selectedIndex]})
+		var enemyOptPieces []*Piece
+
+		if slayers := FilterSlayingOptions(*player.Enemy); len(slayers) > 0 {
+			enemyOptPieces = slayers
 		} else {
-			potentialPlays[localMaxSlay] = []piecePlay{{a, plays[selectedIndex]}}
+			enemyOptPieces = FilterSimpleOptions(*player.Enemy)
 		}
+
+		if len(enemyOptPieces) == 0 {
+			score += float64(nullifyingMove)
+		}
+
+		enemyMoveCount := 0
+		enemyScoreSum := 0.0
+
+		for _, b := range enemyOptPieces {
+			enemyResults := simulatePlays(player.Enemy, b, depth-1)
+
+			for x := range enemyResults {
+				enemyMoveCount++
+				enemyScoreSum += enemyResults[x].score
+			}
+		}
+
+		////
+
+		if enemyMoveCount > 0 {
+			score -= enemyScoreSum / float64(enemyMoveCount)
+		}
+
+		if maxScore == nil || *maxScore < score {
+			maxScore = &score
+		}
+
+		result = append(result, piecePlay{pi, a, score})
 	}
 
-	////
+	return util.Filter(result, func(i piecePlay) bool { return i.score == *maxScore })
+}
 
-	if len(potentialPlays[maxSlay]) == 0 {
-		return potentialPlays[maxSlay][0].piece, potentialPlays[maxSlay][0].play
+func getStateCopy(pl player, pi Piece) (*player, *Piece, []Play) {
+	board := *pl.board
+
+	board.white = make([]*Piece, len(pl.board.white))
+	board.black = make([]*Piece, len(pl.board.black))
+
+	enemy := *pl.Enemy
+	pl.Enemy = &enemy
+	pl.Enemy.Enemy = &pl
+
+	for x := range pl.board.white {
+		cp := *pl.board.white[x]
+		board.white[x] = &cp
 	}
 
-	// TODO: check first if the next enemy move causes a slay
-	// TODO: check if next move causes crowning
-	selectedInx := rand.Intn(len(potentialPlays[maxSlay]))
-	return potentialPlays[maxSlay][selectedInx].piece, potentialPlays[maxSlay][selectedInx].play
+	for x := range pl.board.black {
+		cp := *pl.board.black[x]
+		board.black[x] = &cp
+	}
+
+	pl.board = &board
+	pl.Enemy.board = &board
+
+	if pl.Char == whiteChar {
+		pl.Pieces = &pl.board.white
+		pl.Enemy.Pieces = &pl.board.black
+	} else {
+		pl.Pieces = &pl.board.black
+		pl.Enemy.Pieces = &pl.board.white
+	}
+
+	piece, _, _ := pl.board.GetPieceAt(pi.Point)
+
+	trees := CreateTreeMaps(pl, piece)
+	plays := GetPiecePlays(trees)
+
+	return &pl, piece, plays
 }

@@ -11,6 +11,15 @@ import (
 	"github.com/ifebles/chalhub/pkg/util"
 )
 
+type Signal int
+
+const (
+	Cont Signal = iota
+	Next
+	Print
+	Quit
+)
+
 type playerType string
 
 const (
@@ -130,26 +139,24 @@ func StartGame(board *board, mode PlayMode) *player {
 		if rand.Intn(2) == 1 {
 			players[0] = &player{blackChar, players[1], Human, board, &board.black}
 			players[1] = &player{whiteChar, players[0], Ai, board, &board.white}
-			players[0].Enemy = players[1]
 		} else {
 			players[0] = &player{blackChar, players[1], Ai, board, &board.black}
 			players[1] = &player{whiteChar, players[0], Human, board, &board.white}
-			players[0].Enemy = players[1]
 		}
 
 	case PlayerVsPlayer:
 		players[0] = &player{blackChar, nil, Human, board, &board.black}
 		players[1] = &player{whiteChar, players[0], Human, board, &board.white}
-		players[0].Enemy = players[1]
 
 	case AIvsAI:
 		players[0] = &player{blackChar, players[1], Ai, board, &board.black}
 		players[1] = &player{whiteChar, players[0], Ai, board, &board.white}
-		players[0].Enemy = players[1]
 
 	default:
 		panic("unknown mode")
 	}
+
+	players[0].Enemy = players[1]
 
 	wg.Wait()
 
