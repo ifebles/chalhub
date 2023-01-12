@@ -78,27 +78,27 @@ func (ai *ai) DecidePlay(pl *player) Signal {
 		bestPlays = append(bestPlays, simulatePlays(pl, a, 2)...)
 	}
 
-	bestPlay := selectPlay(pl, bestPlays)
+	selectedPlay := selectPlay(pl, bestPlays)
 	modutil.PrintSystem("executing play...")
 
-	pieceCoord := PointToCoord(bestPlay.piece.Point)
-	fmt.Printf("\nPlaying piece %s to %s\n\n", pieceCoord, PointToCoord(bestPlay.play.Dest))
+	pieceCoord := PointToCoord(selectedPlay.piece.Point)
+	fmt.Printf("\nPlaying piece %s to %s\n\n", pieceCoord, PointToCoord(selectedPlay.play.Dest))
 	fmt.Print("Details:\n\n")
 	fmt.Printf("- Piece: %s\n", pieceCoord)
-	fmt.Printf("- Moves: %s\n", strings.Join(bestPlay.play.Breadcrumbs, ", "))
+	fmt.Printf("- Moves: %s\n", strings.Join(selectedPlay.play.Breadcrumbs, ", "))
 
 	if slays {
-		coords := util.Map(bestPlay.play.Slays, func(i *Point) string { return PointToCoord(*i) })
+		coords := util.Map(selectedPlay.play.Slays, func(i *Point) string { return PointToCoord(*i) })
 		fmt.Printf("- Slays: %s\n", strings.Join(coords, ", "))
 	}
 
-	if bestPlay.play.IsKing && !bestPlay.piece.IsKing {
+	if selectedPlay.play.IsKing && !selectedPlay.piece.IsKing {
 		fmt.Print("- Status: crowned\n")
 	}
 
 	////
 
-	ExecutePlay(pl, bestPlay.piece, bestPlay.play)
+	ExecutePlay(pl, selectedPlay.piece, selectedPlay.play)
 
 	fmt.Println()
 	modutil.PrintSystem("done\n")
@@ -117,8 +117,11 @@ func selectPlay(pl *player, pp []piecePlay) piecePlay {
 	scoreMap := make(map[float64][]piecePlay)
 
 	for _, a := range pp {
-		if maxScore == nil || *maxScore < a.score {
-			maxScore = &a.score
+		if maxScore == nil {
+			maxScore = new(float64)
+			*maxScore = a.score
+		} else if *maxScore < a.score {
+			*maxScore = a.score
 		}
 
 		if _, ok := scoreMap[a.score]; ok {
@@ -139,8 +142,6 @@ func simulatePlays(p *player, pi *Piece, depth int) []piecePlay {
 	if depth == 0 {
 		return result
 	}
-
-	// TODO: calculate score of leaving the piece without moving
 
 	var maxScore *float64
 
@@ -177,12 +178,16 @@ func simulatePlays(p *player, pi *Piece, depth int) []piecePlay {
 
 			score += float64(crowningMove) - math.Abs(float64(a.Dest.X-crownDest))
 		} else {
-			// TODO: find the closest piece and the best slaying spot
+			// TODO: determine the closest killable piece and the best slaying spot
+			// TODO: if no killable piece found, find the nearest and move there
 		}
 
 		if depth-1 == 0 {
-			if maxScore == nil || *maxScore < score {
-				maxScore = &score
+			if maxScore == nil {
+				maxScore = new(float64)
+				*maxScore = score
+			} else if *maxScore < score {
+				*maxScore = score
 			}
 
 			result = append(result, piecePlay{pi, a, score})
@@ -191,41 +196,72 @@ func simulatePlays(p *player, pi *Piece, depth int) []piecePlay {
 
 		////
 
-		player, piece, playsim := getStateCopy(*p, *pi)
-		ExecutePlay(player, piece, playsim[x])
+		nextPlaySimulation := func(isEnemy bool) float64 {
+			simplayer, simpiece, simplay := getStateCopy(*p, *pi)
+			ExecutePlay(simplayer, simpiece, simplay[x])
 
-		var enemyOptPieces []*Piece
+			var simOptPieces []*Piece
+			var cp *player
 
-		if slayers := FilterSlayingOptions(*player.Enemy); len(slayers) > 0 {
-			enemyOptPieces = slayers
-		} else {
-			enemyOptPieces = FilterSimpleOptions(*player.Enemy)
-		}
-
-		if len(enemyOptPieces) == 0 {
-			score += float64(nullifyingMove)
-		}
-
-		enemyMoveCount := 0
-		enemyScoreSum := 0.0
-
-		for _, b := range enemyOptPieces {
-			enemyResults := simulatePlays(player.Enemy, b, depth-1)
-
-			for x := range enemyResults {
-				enemyMoveCount++
-				enemyScoreSum += enemyResults[x].score
+			if isEnemy {
+				cp = simplayer.Enemy
+			} else {
+				cp = simplayer
 			}
+
+			if slayers := FilterSlayingOptions(*cp); len(slayers) > 0 {
+				simOptPieces = slayers
+			} else {
+				simOptPieces = FilterSimpleOptions(*cp)
+			}
+
+			simMoveCount := 0
+			simScoreSum := 0.0
+
+			if len(simOptPieces) == 0 {
+				simScoreSum -= float64(nullifyingMove)
+			}
+
+			for _, b := range simOptPieces {
+				simResults := simulatePlays(cp, b, depth-1)
+
+				for x := range simResults {
+					simMoveCount++
+					simScoreSum += simResults[x].score
+
+					if isEnemy {
+						if _, ok := util.Find(simResults[x].play.Slays, func(i *Point) bool { return simpiece.Point == *i }); ok {
+							if simpiece.IsKing {
+								simScoreSum += float64(kingSlayMove) * 2
+							} else {
+								simScoreSum += float64(simpleSlayMove) * 2
+							}
+						}
+					}
+				}
+			}
+
+			if simMoveCount == 0 {
+				return simScoreSum
+			}
+
+			return simScoreSum / float64(simMoveCount)
 		}
 
 		////
 
-		if enemyMoveCount > 0 {
-			score -= enemyScoreSum / float64(enemyMoveCount)
-		}
+		enemyScoreAvg := nextPlaySimulation(true)
+		selfScoreAvg := nextPlaySimulation(false)
 
-		if maxScore == nil || *maxScore < score {
-			maxScore = &score
+		score += selfScoreAvg - enemyScoreAvg
+
+		// TODO: if this piece is endangered by not playing it, add plain value to score to incentivize action
+
+		if maxScore == nil {
+			maxScore = new(float64)
+			*maxScore = score
+		} else if *maxScore < score {
+			*maxScore = score
 		}
 
 		result = append(result, piecePlay{pi, a, score})

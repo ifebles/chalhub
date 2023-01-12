@@ -36,6 +36,51 @@ func GetNewBoard() *board {
 	return &board{}
 }
 
+func (b *board) feed(str string) {
+	if got, want := len(str), boardSize*(boardSize*2-1)+(boardSize-1); got != want {
+		panic(fmt.Sprintf("invalid grid received; expected size: %d, got: %d", want, got))
+	}
+
+	if strings.Count(str, "\n") != boardSize-1 {
+		panic("not enough rows found for the grid")
+	}
+
+	if strings.Count(strings.ToLower(str), string(whiteChar)) == 0 {
+		panic(fmt.Sprintf("expected to find at least one %s piece", string(whiteChar)))
+	}
+
+	if strings.Count(strings.ToLower(str), string(blackChar)) == 0 {
+		panic(fmt.Sprintf("expected to find at least one %s piece", string(blackChar)))
+	}
+
+	rows := strings.Split(str, "\n")
+	var whites, blacks []*Piece
+
+	for x := range rows {
+		cols := strings.Split(rows[x], " ")
+
+		if got, want := len(cols), boardSize; got != want {
+			panic(fmt.Sprintf("invalid column count for row; got: %d, want: %d", got, want))
+		}
+
+		for y := range cols {
+			char := []rune(cols[y])[0]
+
+			switch unicode.ToLower(char) {
+			case whiteChar:
+				whites = append(whites, &Piece{Point{x, y}, char == unicode.ToUpper(char)})
+
+			case blackChar:
+				blacks = append(blacks, &Piece{Point{x, y}, char == unicode.ToUpper(char)})
+			}
+		}
+	}
+
+	b.initialized = true
+	b.white = whites
+	b.black = blacks
+}
+
 func (b *board) String() string {
 	return b.Render()
 }

@@ -120,6 +120,22 @@ type Play struct {
 var currentTurn = 1
 var players = [2]*player{}
 
+func ResumeGame(board *board, gridstr string, wp, bp playerType, turn int) *player {
+	board.feed(gridstr)
+
+	if turn <= 0 {
+		panic("invalid turn received")
+	}
+
+	players[0] = &player{blackChar, nil, bp, board, &board.black}
+	players[1] = &player{whiteChar, players[0], wp, board, &board.white}
+	players[0].Enemy = players[1]
+
+	currentTurn = turn
+
+	return GetCurrentPlayer()
+}
+
 func StartGame(board *board, mode PlayMode) *player {
 	wg := sync.WaitGroup{}
 
@@ -137,10 +153,10 @@ func StartGame(board *board, mode PlayMode) *player {
 		rand.Seed(time.Now().UnixNano())
 
 		if rand.Intn(2) == 1 {
-			players[0] = &player{blackChar, players[1], Human, board, &board.black}
+			players[0] = &player{blackChar, nil, Human, board, &board.black}
 			players[1] = &player{whiteChar, players[0], Ai, board, &board.white}
 		} else {
-			players[0] = &player{blackChar, players[1], Ai, board, &board.black}
+			players[0] = &player{blackChar, nil, Ai, board, &board.black}
 			players[1] = &player{whiteChar, players[0], Human, board, &board.white}
 		}
 
@@ -149,7 +165,7 @@ func StartGame(board *board, mode PlayMode) *player {
 		players[1] = &player{whiteChar, players[0], Human, board, &board.white}
 
 	case AIvsAI:
-		players[0] = &player{blackChar, players[1], Ai, board, &board.black}
+		players[0] = &player{blackChar, nil, Ai, board, &board.black}
 		players[1] = &player{whiteChar, players[0], Ai, board, &board.white}
 
 	default:
