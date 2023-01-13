@@ -255,7 +255,38 @@ func simulatePlays(p *player, pi *Piece, depth int) []piecePlay {
 
 		score += selfScoreAvg - enemyScoreAvg
 
-		// TODO: if this piece is endangered by not playing it, add plain value to score to incentivize action
+		////
+
+		slayPoints := 0.0
+		var enemyOptPieces []*Piece
+
+		if slayers := FilterSlayingOptions(*p.Enemy); len(slayers) > 0 {
+			enemyOptPieces = slayers
+		} else {
+			enemyOptPieces = FilterSimpleOptions(*p.Enemy)
+		}
+
+		for _, b := range enemyOptPieces {
+			enemySimResult := simulatePlays(p.Enemy, b, 1)
+
+			// If piece can be killed by not moving, add the current piece's value to the score
+			if _, ok := util.Find(enemySimResult, func(i piecePlay) bool {
+				_, ok := util.Find(i.play.Slays, func(i *Point) bool { return *i == pi.Point })
+				return ok
+			}); ok {
+				if pi.IsKing {
+					slayPoints = float64(kingSlayMove)
+				} else {
+					slayPoints = float64(simpleSlayMove)
+				}
+
+				break
+			}
+		}
+
+		score += slayPoints
+
+		////
 
 		if maxScore == nil {
 			maxScore = new(float64)
